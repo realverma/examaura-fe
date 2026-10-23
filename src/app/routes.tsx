@@ -9,6 +9,10 @@ import { QuizCreator } from './pages/QuizCreator';
 import { Profile } from './pages/Profile';
 import { Navbar } from './components/Navbar';
 import { Toaster } from './components/ui/sonner';
+import { OAuth2RedirectHandler } from './auth/OAuth2RedirectHandler';
+import LoginPage from "./pages/LoginPage";
+import  ProtectedRoute  from './routes/ProtectedRoute'; // 🚀 Import your new gatekeeper
+import  PublicOnlyRoute  from './routes/PublicOnlyRoute';
 
 function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,6 +25,9 @@ function RootLayout({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
+  // ==========================================
+  // 🟢 PUBLIC ROUTES (Anyone can access these)
+  // ==========================================
   {
     path: '/',
     element: (
@@ -38,14 +45,6 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/category/:categoryId',
-    element: (
-      <RootLayout>
-        <CategoryPage />
-      </RootLayout>
-    ),
-  },
-  {
     path: '/quiz/:quizId/instructions',
     element: (
       <RootLayout>
@@ -54,31 +53,65 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/quiz/:quizId/attempt',
-    element: <ActiveQuiz />,
-  },
-  {
-    path: '/quiz/:quizId/results',
+    path: '/category/:categoryId',
     element: (
       <RootLayout>
-        <QuizResults />
+        <CategoryPage />
       </RootLayout>
     ),
   },
   {
-    path: '/create-quiz',
+  element: <PublicOnlyRoute />,
+  children: [
+    {
+      path: "/login",
+      element: <LoginPage />
+    }
+  ]
+},
+  {
+    path: '/oauth2/redirect',
     element: (
       <RootLayout>
-        <QuizCreator />
+        <OAuth2RedirectHandler />
       </RootLayout>
     ),
   },
+
+  // ==========================================
+  // 🔴 PROTECTED ROUTES (Requires Login)
+  // ==========================================
   {
-    path: '/profile',
-    element: (
-      <RootLayout>
-        <Profile />
-      </RootLayout>
-    ),
+    element: <ProtectedRoute />, // 🚀 The Gatekeeper sits here
+    children: [
+      {
+        path: '/create-quiz',
+        element: (
+          <RootLayout>
+            <QuizCreator />
+          </RootLayout>
+        ),
+      },
+      {
+        path: '/profile',
+        element: (
+          <RootLayout>
+            <Profile />
+          </RootLayout>
+        ),
+      },
+      {
+        path: '/quiz/:quizId/attempt',
+        element: <ActiveQuiz />, // Note: Intentionally left out of RootLayout per your original setup
+      },
+      {
+        path: '/quiz/:quizId/results',
+        element: (
+          <RootLayout>
+            <QuizResults />
+          </RootLayout>
+        ),
+      },
+    ],
   },
 ]);

@@ -11,14 +11,12 @@ interface QuestionDisplayProps {
   onAnswer: (answer: any) => void;
   isPracticeMode: boolean;
   hasAnswered: boolean;
+  isLocked?: boolean;
 }
 
+// Change this wrapper to simply forward props to the internal content switcher
 export function QuestionDisplay(props: QuestionDisplayProps) {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <QuestionDisplayInner {...props} />
-    </DndProvider>
-  );
+  return <QuestionDisplayInner {...props} />;
 }
 
 function QuestionDisplayInner({
@@ -26,49 +24,52 @@ function QuestionDisplayInner({
   userAnswer,
   onAnswer,
   isPracticeMode,
-  hasAnswered
+  hasAnswered,
+  isLocked = false
 }: QuestionDisplayProps) {
+  const safeOnAnswer = isLocked ? () => {} : onAnswer;
   switch (question.type) {
     case 'objective':
-      return <ObjectiveDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <ObjectiveDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'multiple-choice':
-      return <MultipleChoiceDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <MultipleChoiceDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'yes-no-grid':
-      return <YesNoGridDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <YesNoGridDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'drag-match':
-      return <DragMatchDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <DragMatchDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'drag-classify':
-      return <DragClassifyDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <DragClassifyDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'inline-dropdown':
-      return <InlineDropdownDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <InlineDropdownDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     case 'matching-dropdown':
-      return <MatchingDropdownDisplay question={question} userAnswer={userAnswer} onAnswer={onAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} />;
+      return <MatchingDropdownDisplay question={question} userAnswer={userAnswer} onAnswer={safeOnAnswer} isPracticeMode={isPracticeMode} hasAnswered={hasAnswered} isLocked={isLocked} />;
     default:
       return null;
   }
 }
 
 // Objective (Single Answer)
-function ObjectiveDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function ObjectiveDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked }: QuestionDisplayProps) {
   const getOptionClassName = (optionIndex: number) => {
+    const cursorClass = isLocked ? 'cursor-not-allowed' : 'cursor-pointer';
     if (!isPracticeMode || !hasAnswered) {
-      return `p-4 border-2 rounded-xl cursor-pointer transition-all ${
+      return `p-4 border-2 rounded-xl ${cursorClass} transition-all ${
         userAnswer === optionIndex
           ? 'border-[#1e40af] bg-blue-50'
-          : 'border-border hover:border-[#1e40af]/50'
+          :`border-border ${isLocked ? '' : 'hover:border-[#1e40af]/50'}`
       }`;
     }
     const isCorrect = optionIndex === question.correctAnswer;
     const wasSelected = userAnswer === optionIndex;
-    if (isCorrect) return 'p-4 border-2 border-[#10b981] bg-green-50 rounded-xl cursor-pointer';
-    if (wasSelected && !isCorrect) return 'p-4 border-2 border-[#dc2626] bg-red-50 rounded-xl cursor-pointer';
-    return 'p-4 border-2 border-border rounded-xl opacity-50 cursor-pointer';
+      if (isCorrect) return `p-4 border-2 border-[#10b981] bg-green-50 rounded-xl ${cursorClass}`;
+      if (wasSelected && !isCorrect) return `p-4 border-2 border-[#dc2626] bg-red-50 rounded-xl ${cursorClass}`;
+    return `p-4 border-2 border-border rounded-xl opacity-50 ${cursorClass}`;
   };
 
   return (
     <div className="space-y-3">
       {question.options?.map((option, index) => (
-        <div key={index} onClick={() => onAnswer(index)} className={getOptionClassName(index)}>
+        <div key={index} onClick={() => !isLocked && onAnswer(index)} className={getOptionClassName(index)}>
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center flex-shrink-0">
               {userAnswer === index && <div className="w-3 h-3 rounded-full bg-current" />}
@@ -88,10 +89,11 @@ function ObjectiveDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasA
 }
 
 // Multiple Choice (Select All That Apply)
-function MultipleChoiceDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function MultipleChoiceDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked }: QuestionDisplayProps) {
   const selectedAnswers: number[] = userAnswer || [];
 
   const toggleAnswer = (optionIndex: number) => {
+    if (isLocked) return;
     const newAnswers = selectedAnswers.includes(optionIndex)
       ? selectedAnswers.filter((ans: number) => ans !== optionIndex)
       : [...selectedAnswers, optionIndex];
@@ -99,25 +101,26 @@ function MultipleChoiceDisplay({ question, userAnswer, onAnswer, isPracticeMode,
   };
 
   const getOptionClassName = (optionIndex: number) => {
+    const cursorClass = isLocked ? 'cursor-not-allowed' : 'cursor-pointer';
     const isSelected = selectedAnswers.includes(optionIndex);
     if (!isPracticeMode || !hasAnswered) {
-      return `p-4 border-2 rounded-xl cursor-pointer transition-all ${
-        isSelected ? 'border-[#1e40af] bg-blue-50' : 'border-border hover:border-[#1e40af]/50'
+      return `p-4 border-2 rounded-xl ${cursorClass} transition-all ${
+        isSelected ? 'border-[#1e40af] bg-blue-50' : `border-border ${isLocked ? '' : 'hover:border-[#1e40af]/50'}`
       }`;
     }
     const correctAnswers = Array.isArray(question.correctAnswer) ? question.correctAnswer : [];
     const isCorrect = correctAnswers.includes(optionIndex);
-    if (isCorrect && isSelected) return 'p-4 border-2 border-[#10b981] bg-green-50 rounded-xl cursor-pointer';
-    if (isCorrect && !isSelected) return 'p-4 border-2 border-[#10b981] bg-green-50 rounded-xl opacity-70 cursor-pointer';
-    if (isSelected && !isCorrect) return 'p-4 border-2 border-[#dc2626] bg-red-50 rounded-xl cursor-pointer';
-    return 'p-4 border-2 border-border rounded-xl opacity-50 cursor-pointer';
+    if (isCorrect && isSelected) return `p-4 border-2 border-[#10b981] bg-green-50 rounded-xl ${cursorClass}`;
+    if (isCorrect && !isSelected) return `p-4 border-2 border-[#10b981] bg-green-50 rounded-xl opacity-70 ${cursorClass}`;
+    if (isSelected && !isCorrect) return `p-4 border-2 border-[#dc2626] bg-red-50 rounded-xl ${cursorClass}`;
+    return `p-4 border-2 border-border rounded-xl opacity-50 ${cursorClass}`;
   };
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600 mb-3">Select all that apply</p>
       {question.options?.map((option, index) => (
-        <div key={index} onClick={() => toggleAnswer(index)} className={getOptionClassName(index)}>
+        <div key={index} onClick={() => !isLocked && toggleAnswer(index)} className={getOptionClassName(index)}>
           <div className="flex items-center gap-3">
             <div className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 ${
               selectedAnswers.includes(index) ? 'border-current bg-current' : 'border-current'
@@ -137,10 +140,11 @@ function MultipleChoiceDisplay({ question, userAnswer, onAnswer, isPracticeMode,
 }
 
 // Yes/No Grid
-function YesNoGridDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function YesNoGridDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked }: QuestionDisplayProps) {
   const answers = userAnswer || {};
 
   const handleAnswer = (statementId: string, answer: 'yes' | 'no') => {
+    if (isLocked) return; // 🚀 Guard handler
     onAnswer({ ...answers, [statementId]: answer });
   };
 
@@ -148,15 +152,16 @@ function YesNoGridDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasA
     const isSelected = answers[statementId] === option;
     const statement = question.statements?.find(s => s.id === statementId);
     const isCorrect = statement?.correctAnswer === option;
+    const cursorClass = isLocked ? 'cursor-not-allowed' : 'cursor-pointer';
 
     if (!isPracticeMode || !hasAnswered) {
-      return `w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer ${
-        isSelected ? 'border-[#1e40af] bg-[#1e40af] text-white' : 'border-border hover:border-[#1e40af]/50'
+      return `w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all ${cursorClass} ${
+        isSelected ? 'border-[#1e40af] bg-[#1e40af] text-white' : `border-border ${isLocked ? '' : 'hover:border-[#1e40af]/50'}`
       }`;
     }
-    if (isCorrect) return `w-12 h-12 rounded-full border-2 border-[#10b981] cursor-pointer flex items-center justify-center ${isSelected ? 'bg-[#10b981] text-white' : 'bg-green-50'}`;
-    if (isSelected && !isCorrect) return 'w-12 h-12 rounded-full border-2 border-[#dc2626] bg-[#dc2626] text-white cursor-pointer flex items-center justify-center';
-    return 'w-12 h-12 rounded-full border-2 border-border bg-slate-50 opacity-50 cursor-pointer flex items-center justify-center';
+    if (isCorrect) return `w-12 h-12 rounded-full border-2 border-[#10b981] ${cursorClass} flex items-center justify-center ${isSelected ? 'bg-[#10b981] text-white' : 'bg-green-50'}`;
+    if (isSelected && !isCorrect) return `w-12 h-12 rounded-full border-2 border-[#dc2626] bg-[#dc2626] text-white ${cursorClass} flex items-center justify-center`;
+    return `w-12 h-12 rounded-full border-2 border-border bg-slate-50 opacity-50 ${cursorClass} flex items-center justify-center`;
   };
 
   return (
@@ -171,12 +176,20 @@ function YesNoGridDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasA
           <div key={statement.id} className="grid grid-cols-[1fr_100px_100px] gap-4 items-center py-3 border-b border-border">
             <div className="text-sm">{statement.text}</div>
             <div className="flex justify-center">
-              <button onClick={() => handleAnswer(statement.id, 'yes')} className={getButtonClassName(statement.id, 'yes')}>
+              <button 
+                disabled={isLocked} // 🚀 NATIVE LOCK
+                onClick={() => handleAnswer(statement.id, 'yes')} 
+                className={getButtonClassName(statement.id, 'yes')}
+              >
                 {answers[statement.id] === 'yes' && <div className="w-3 h-3 rounded-full bg-current" />}
               </button>
             </div>
             <div className="flex justify-center">
-              <button onClick={() => handleAnswer(statement.id, 'no')} className={getButtonClassName(statement.id, 'no')}>
+              <button 
+                disabled={isLocked} // 🚀 NATIVE LOCK
+                onClick={() => handleAnswer(statement.id, 'no')} 
+                className={getButtonClassName(statement.id, 'no')}
+              >
                 {answers[statement.id] === 'no' && <div className="w-3 h-3 rounded-full bg-current" />}
               </button>
             </div>
@@ -498,7 +511,7 @@ function ClassifyCategoryZone({
   );
 }
 
-function DragClassifyDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function DragClassifyDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked}: QuestionDisplayProps) {
   const [classifications, setClassifications] = useState<Record<string, string[]>>(userAnswer || {});
 
   const update = (newClassifications: Record<string, string[]>) => {
@@ -508,6 +521,7 @@ function DragClassifyDisplay({ question, userAnswer, onAnswer, isPracticeMode, h
 
   // Drop onto a category zone
   const handleDropOnCategory = (targetCategoryId: string, item: ClassifyDragItem) => {
+    if (isLocked) return;
     const newClassifications = { ...classifications };
     const { itemId, fromCategoryId } = item;
 
@@ -529,6 +543,7 @@ function DragClassifyDisplay({ question, userAnswer, onAnswer, isPracticeMode, h
 
   // Return to pool (remove from any category)
   const handleReturnToPool = (itemId: string, fromCategoryId: string) => {
+    if (isLocked) return;
     const newClassifications = { ...classifications };
     newClassifications[fromCategoryId] = (newClassifications[fromCategoryId] || []).filter(id => id !== itemId);
     update(newClassifications);
@@ -568,10 +583,11 @@ function DragClassifyDisplay({ question, userAnswer, onAnswer, isPracticeMode, h
 }
 
 // Inline Dropdown
-function InlineDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function InlineDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked }: QuestionDisplayProps) {
   const answers = userAnswer || {};
 
   const handleDropdownChange = (dropdownIndex: number, value: string) => {
+    if (isLocked) return; // 🚀 Guard handler
     onAnswer({ ...answers, [dropdownIndex]: parseInt(value) });
   };
 
@@ -585,10 +601,13 @@ function InlineDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode,
           {index < parts.length - 1 && question.inlineDropdowns && question.inlineDropdowns[index] && (
             <span className="inline-block mx-1">
               <Select
+                disabled={isLocked} // 🚀 DISABLE DROPDOWN WHEN LOCKED
                 value={answers[index]?.toString() || ''}
                 onValueChange={(value) => handleDropdownChange(index, value)}
               >
                 <SelectTrigger className={`w-[200px] inline-flex ${
+                  isLocked ? 'cursor-not-allowed opacity-70' : ''
+                } ${
                   isPracticeMode && hasAnswered
                     ? answers[index] === question.inlineDropdowns[index].correctAnswer
                       ? 'border-[#10b981] bg-green-50'
@@ -614,10 +633,11 @@ function InlineDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode,
 }
 
 // Matching Dropdown
-function MatchingDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered }: QuestionDisplayProps) {
+function MatchingDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMode, hasAnswered, isLocked }: QuestionDisplayProps) {
   const answers = userAnswer || {};
 
   const handleDropdownChange = (rowId: string, value: string) => {
+    if (isLocked) return; // 🚀 Guard handler
     onAnswer({ ...answers, [rowId]: parseInt(value) });
   };
 
@@ -629,10 +649,11 @@ function MatchingDropdownDisplay({ question, userAnswer, onAnswer, isPracticeMod
           <div key={row.id} className="grid grid-cols-[1fr_300px] gap-4 items-center">
             <div className="font-medium">{row.label}</div>
             <Select
+              disabled={isLocked} // 🚀 DISABLE DROPDOWN WHEN LOCKED
               value={answers[row.id]?.toString() || ''}
               onValueChange={(value) => handleDropdownChange(row.id, value)}
             >
-              <SelectTrigger className={`${
+              <SelectTrigger className={`${isLocked ? 'cursor-not-allowed opacity-70' : ''} ${
                 isCorrect === true ? 'border-[#10b981] bg-green-50' :
                 isCorrect === false ? 'border-[#dc2626] bg-red-50' :
                 'border-[#1e40af]'
