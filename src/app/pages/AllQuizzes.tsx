@@ -1,26 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { QuizCard } from '../components/QuizCard';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { categories } from '../data/mockData';
-import { ArrowLeft, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useQuizzes } from '../context/QuizContext';
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import api from '../api/axiosConfig'; // 🚀 Use your configured api instance
 
 const ITEMS_PER_PAGE = 12;
 
 export function AllQuizzes() {
   const navigate = useNavigate();
-  const { quizzes } = useQuizzes();
+  
+  // 🚀 Real Backend Data States
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Fetch quizzes from backend on mount
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      try {
+        setLoading(true);
+        // Assuming your backend endpoint is GET /quizzes (or /quizzes?size=100)
+        const response = await api.get('/quizzes?page=0&size=20&sort=createdAt&order=ASC');
+        
+        // Handle Spring Boot pageable response (.content) or plain arrays
+        const rawData = response.data.content || response.data.data || response.data;
+
+        // Map backend properties to match your frontend QuizCard expectations
+        const formattedQuizzes = rawData.map((q: any) => ({
+          id: q.id,
+          title: q.title,
+          description: q.description,
+          category: q.categoryName || q.category || 'General',
+          difficulty: (q.difficulty || 'medium').toLowerCase(),
+          totalQuestions: q.questionCount || q.totalQuestions || 0,
+          durationMinutes: q.durationMinutes || 10,
+          imageUrl: q.imageUrl || q.coverImageUrl,
+        }));
+
+        setQuizzes(formattedQuizzes);
+      } catch (error) {
+        console.error('Failed to fetch quizzes from backend:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, []);
+
   // Filter quizzes
   let filteredQuizzes = quizzes;
   if (filterCategory !== 'all') {
-    filteredQuizzes = filteredQuizzes.filter(q => q.category === filterCategory);
+    filteredQuizzes = filteredQuizzes.filter(q => q.category.toLowerCase() === filterCategory.toLowerCase());
   }
   if (filterDifficulty !== 'all') {
     filteredQuizzes = filteredQuizzes.filter(q => q.difficulty === filterDifficulty);
@@ -30,13 +68,9 @@ export function AllQuizzes() {
   const sortedQuizzes = [...filteredQuizzes].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
-        // Assuming newer quizzes have higher IDs or are later in the array
-        return 0; // Keep original order (newest first)
+        return b.id - a.id; // Assuming higher/newer IDs come last or first depending on generation
       case 'oldest':
-        return 0; // Would reverse if we had dates
-      case 'most-attempted':
-        // Mock implementation - would use actual attempt counts
-        return 0;
+        return a.id - b.id;
       case 'category-az':
         return a.category.localeCompare(b.category);
       default:
@@ -44,20 +78,24 @@ export function AllQuizzes() {
     }
   });
   
-  if (sortBy === 'oldest') {
-    sortedQuizzes.reverse();
-  }
-  
   const totalPages = Math.ceil(sortedQuizzes.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentQuizzes = sortedQuizzes.slice(startIndex, endIndex);
-  
+  console.log('Current====> :', currentQuizzes); // Debugging log
   const goToPage = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#1e40af]" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Back Button */}
@@ -115,7 +153,6 @@ export function AllQuizzes() {
             <SelectContent>
               <SelectItem value="newest">Newest</SelectItem>
               <SelectItem value="oldest">Oldest</SelectItem>
-              <SelectItem value="most-attempted">Most Attempted</SelectItem>
               <SelectItem value="category-az">Category (A-Z)</SelectItem>
             </SelectContent>
           </Select>
@@ -128,6 +165,8 @@ export function AllQuizzes() {
           <QuizCard key={quiz.id} quiz={quiz} />
         ))}
       </div>
+
+      
       
       {/* No results message */}
       {currentQuizzes.length === 0 && (

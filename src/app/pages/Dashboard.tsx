@@ -16,6 +16,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+
   useEffect(() => {
     const fetchQuizzes = async () => {
       try {
