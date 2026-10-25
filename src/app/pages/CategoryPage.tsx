@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router';
+import { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { categories } from '../data/mockData';
 import {
   ArrowLeft,
   Trophy,
@@ -16,10 +16,11 @@ import {
   XCircle,
   Play,
   Star,
+  Loader2,
 } from 'lucide-react';
 import { useQuizzes } from '../context/QuizContext';
 import { useUser } from '../context/UserContext';
-import { Quiz } from '../data/mockData';
+import api from '../api/axiosConfig';
 
 const categoryMeta: Record<string, { gradient: string; lightBg: string; accent: string; tagline: string; logo: string }> = {
   azure: {
@@ -27,14 +28,14 @@ const categoryMeta: Record<string, { gradient: string; lightBg: string; accent: 
     lightBg: 'from-blue-50 to-sky-50',
     accent: '#0078D4',
     tagline: 'Master Microsoft Azure cloud fundamentals',
-    logo: '☁️',
+    logo: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Microsoft_Azure.svg/1280px-Microsoft_Azure.svg.png?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail',
   },
   aws: {
     gradient: 'from-[#FF9900] via-[#FFB347] to-[#FFCC70]',
     lightBg: 'from-orange-50 to-amber-50',
     accent: '#FF9900',
     tagline: 'Ace the AWS Cloud Practitioner exam',
-    logo: '🌩️',
+    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmUQZsi6fJEoAStiaJ-CjRO1Zm-i95fVSDLAoyCgpAww&s',
   },
   salesforce: {
     gradient: 'from-[#00A1E0] via-[#00BFFF] to-[#66D9FF]',
@@ -70,11 +71,15 @@ const difficultyConfig: Record<string, { label: string; color: string; bg: strin
   beginner: { label: 'Beginner', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
   intermediate: { label: 'Intermediate', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
   advanced: { label: 'Advanced', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+  easy: { label: 'Easy', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+  medium: { label: 'Medium', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+  hard: { label: 'Hard', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
 };
 
-function ModernQuizCard({ quiz, accent }: { quiz: Quiz; accent: string }) {
-  const diff = difficultyConfig[quiz.difficulty] ?? difficultyConfig.beginner;
-  const passing = quiz.passingScore ?? 70;
+function ModernQuizCard({ quiz, accent }: { quiz: any; accent: string }) {
+  const diffKey = (quiz.difficulty || 'beginner').toLowerCase();
+  const diff = difficultyConfig[diffKey] ?? difficultyConfig.beginner;
+  const passing = quiz.passingPercentage ?? 70;
 
   return (
     <Link to={`/quiz/${quiz.id}/instructions`} className="group block">
@@ -105,11 +110,11 @@ function ModernQuizCard({ quiz, accent }: { quiz: Quiz; accent: string }) {
           <div className="flex items-center gap-4 text-sm text-slate-500">
             <span className="flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5" />
-              {quiz.questionCount} questions
+              {quiz.questionCount || quiz.totalQuestions || 0} questions
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              {quiz.duration} min
+              {quiz.durationMinutes || 60} min
             </span>
             <span className="flex items-center gap-1.5">
               <Target className="w-3.5 h-3.5" />
@@ -136,15 +141,46 @@ function ModernQuizCard({ quiz, accent }: { quiz: Quiz; accent: string }) {
 export function CategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
-  const { getQuizzesByCategory, userHistory } = useQuizzes();
+  const { userHistory } = useQuizzes();
   const { isLoggedIn } = useUser();
 
-  const category = categories.find(c => c.id === categoryId);
-  const meta = categoryId ? (categoryMeta[categoryId] ?? null) : null;
-  const categoryQuizzes = categoryId ? getQuizzesByCategory(categoryId) : [];
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [categoryName, setCategoryName] = useState<string>('Category');
+  const [loading, setLoading] = useState(true);
 
+  // Fetch Category Details & Filtered Quizzes from Backend
+  useEffect(() => {
+  const fetchCategoryQuizzes = async () => {
+    if (!categoryId) return;
+
+    try {
+      setLoading(true);
+
+      // Pass the route parameter directly as categorySlug!
+      const response = await api.get('/quizzes', {
+        params: {
+          categorySlug: categoryId, // 🚀 Backend queries via root.get("category").get("slug")
+          size: 100,
+        }
+      });
+
+      const pageData = response.data;
+      const rawQuizzes = pageData.content || pageData.data || pageData;
+      setQuizzes(rawQuizzes);
+      setCategoryName(categoryId.charAt(0).toUpperCase() + categoryId.slice(1)); // Capitalize first letter
+    } catch (error) {
+      console.error('Failed to fetch quizzes for this category:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchCategoryQuizzes();
+}, [categoryId]);
+
+  const meta = categoryId ? (categoryMeta[categoryId.toLowerCase()] ?? null) : null;
   const categoryAttempts = userHistory
-    .filter(h => h.category === categoryId || h.category.toLowerCase().includes(categoryId || ''))
+    .filter(h => h.category === categoryId || h.category?.toLowerCase().includes(categoryId || ''))
     .slice(0, 5);
 
   const avgScore = categoryAttempts.length > 0
@@ -157,10 +193,10 @@ export function CategoryPage() {
 
   const accent = meta?.accent ?? '#1e40af';
 
-  if (!category) {
+  if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p>Category not found</p>
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#1e40af]" />
       </div>
     );
   }
@@ -169,7 +205,6 @@ export function CategoryPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Hero Banner */}
       <div className={`relative bg-gradient-to-br ${meta?.gradient ?? 'from-[#1e40af] to-[#3b82f6]'} overflow-hidden`}>
-        {/* Background texture */}
         <div className="absolute inset-0 opacity-10">
           <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -198,21 +233,21 @@ export function CategoryPage() {
             <span>/</span>
             <Link to="/" className="hover:text-white transition-colors">Home</Link>
             <span>/</span>
-            <span className="text-white font-medium">{category.name}</span>
+            <span className="text-white font-medium">{categoryName}</span>
           </div>
 
           {/* Category Identity */}
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-4xl shadow-lg flex-shrink-0">
-              {meta?.logo ?? category.icon}
+              <img src={meta?.logo} alt="" />
             </div>
             <div>
               <div className="inline-flex items-center gap-2 bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full mb-2 border border-white/30">
                 <BookOpen className="w-3 h-3" />
                 Certification Track
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{category.name}</h1>
-              <p className="text-white/80 mt-1 text-base">{meta?.tagline ?? category.description}</p>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{categoryName}</h1>
+              <p className="text-white/80 mt-1 text-base">{meta?.tagline ?? `Explore practice tests designed for ${categoryName}`}</p>
             </div>
           </div>
 
@@ -222,7 +257,7 @@ export function CategoryPage() {
               <BookOpen className="w-5 h-5 text-white/80" />
               <div>
                 <p className="text-white/70 text-xs">Available tests</p>
-                <p className="text-white font-bold text-lg leading-none mt-0.5">{categoryQuizzes.length}</p>
+                <p className="text-white font-bold text-lg leading-none mt-0.5">{quizzes.length}</p>
               </div>
             </div>
             {isLoggedIn && categoryAttempts.length > 0 && (
@@ -241,13 +276,6 @@ export function CategoryPage() {
                     <p className="text-white font-bold text-lg leading-none mt-0.5">{bestScore}%</p>
                   </div>
                 </div>
-                <div className="bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                  <BarChart3 className="w-5 h-5 text-white/80" />
-                  <div>
-                    <p className="text-white/70 text-xs">Attempts</p>
-                    <p className="text-white font-bold text-lg leading-none mt-0.5">{categoryAttempts.length}</p>
-                  </div>
-                </div>
               </>
             )}
           </div>
@@ -263,11 +291,11 @@ export function CategoryPage() {
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <BookOpen className="w-5 h-5" style={{ color: accent }} />
                 Practice Tests
-                <span className="text-sm font-normal text-slate-500 ml-1">({categoryQuizzes.length})</span>
+                <span className="text-sm font-normal text-slate-500 ml-1">({quizzes.length})</span>
               </h2>
             </div>
 
-            {categoryQuizzes.length === 0 ? (
+            {quizzes.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm">
                 <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                   <BookOpen className="w-8 h-8 text-slate-400" />
@@ -282,7 +310,7 @@ export function CategoryPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {categoryQuizzes.map(quiz => (
+                {quizzes.map(quiz => (
                   <ModernQuizCard key={quiz.id} quiz={quiz} accent={accent} />
                 ))}
               </div>

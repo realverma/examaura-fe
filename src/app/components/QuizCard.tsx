@@ -22,6 +22,9 @@ export function QuizCard({ quiz }: QuizCardProps) {
             <Badge className="bg-[#1e40af] text-white hover:bg-[#1e3a8a]">
               {quiz.category?.name}
             </Badge>
+            <Badge variant="secondary" className="text-xs capitalize">
+              {quiz.difficulty}
+            </Badge>
           </div>
 
           <div className="space-y-2 text-sm text-slate-600">
