@@ -1,0 +1,167 @@
+{
+  "title": "Imported Qyuizz",
+  "category": "azure",
+  "duration": 60,
+  "description": "A short description of what this quiz covers.",
+  "passingScore": 75,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "objective",
+      "text": "Which cloud model provides the highest flexibility?",
+      "options": [
+        "Public cloud",
+        "Private cloud",
+        "Hybrid cloud",
+        "On-premises"
+      ],
+      "correctAnswer": 2,
+      "explanation": "Hybrid cloud combines public and private clouds, offering maximum flexibility."
+    },
+    {
+      "id": "q2",
+      "type": "multiple-choice",
+      "text": "Which of the following are cloud service models? Select all that apply.",
+      "options": [
+        "IaaS",
+        "PaaS",
+        "SaaS",
+        "DaaS"
+      ],
+      "correctAnswer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "IaaS, PaaS and SaaS are the three primary cloud service models."
+    },
+    {
+      "id": "q3",
+      "type": "yes-no-grid",
+      "text": "For each statement, select Yes or No.",
+      "explanation": "Azure AD is an identity service. Azure Blob is for object storage.",
+      "statements": [
+        {
+          "id": "s1",
+          "text": "Azure Active Directory is an identity service.",
+          "correctAnswer": "yes"
+        },
+        {
+          "id": "s2",
+          "text": "Azure Blob Storage is used for relational data.",
+          "correctAnswer": "no"
+        }
+      ]
+    },
+    {
+      "id": "q4",
+      "type": "drag-match",
+      "text": "Match each term to its definition.",
+      "explanation": "Low latency = fast response; High availability = minimal downtime.",
+      "matchPairs": [
+        {
+          "id": "p1",
+          "term": "Low Latency",
+          "definition": "Minimal delay in processing requests"
+        },
+        {
+          "id": "p2",
+          "term": "High Availability",
+          "definition": "System remains operational with minimal downtime"
+        }
+      ]
+    },
+    {
+      "id": "q5",
+      "type": "drag-classify",
+      "text": "Classify each item into the correct category.",
+      "explanation": "Azure VM is IaaS; Azure App Service is PaaS; Office 365 is SaaS.",
+      "categories": [
+        {
+          "id": "c1",
+          "name": "IaaS"
+        },
+        {
+          "id": "c2",
+          "name": "PaaS"
+        },
+        {
+          "id": "c3",
+          "name": "SaaS"
+        }
+      ],
+      "classifyItems": [
+        {
+          "id": "i1",
+          "text": "Azure Virtual Machines",
+          "correctCategoryId": "c1"
+        },
+        {
+          "id": "i2",
+          "text": "Azure App Service",
+          "correctCategoryId": "c2"
+        },
+        {
+          "id": "i3",
+          "text": "Microsoft 365",
+          "correctCategoryId": "c3"
+        }
+      ]
+    },
+    {
+      "id": "q6",
+      "type": "inline-dropdown",
+      "text": "Complete the sentence.",
+      "explanation": "Azure manages the hardware; you manage your application and data.",
+      "sentenceTemplate": "In a PaaS model, the cloud provider manages [select] while the customer manages [select].",
+      "inlineDropdowns": [
+        {
+          "id": "d1",
+          "options": [
+            "the operating system",
+            "the application",
+            "the data"
+          ],
+          "correctAnswer": 0
+        },
+        {
+          "id": "d2",
+          "options": [
+            "the hardware",
+            "the application code",
+            "the network"
+          ],
+          "correctAnswer": 1
+        }
+      ]
+    },
+    {
+      "id": "q7",
+      "type": "matching-dropdown",
+      "text": "For each Azure service, select the correct category.",
+      "explanation": "Match services to their cloud model.",
+      "dropdownRows": [
+        {
+          "id": "r1",
+          "label": "Azure Virtual Machines",
+          "options": [
+            "IaaS",
+            "PaaS",
+            "SaaS"
+          ],
+          "correctAnswer": 0
+        },
+        {
+          "id": "r2",
+          "label": "Azure SQL Database",
+          "options": [
+            "IaaS",
+            "PaaS",
+            "SaaS"
+          ],
+          "correctAnswer": 1
+        }
+      ]
+    }
+  ]
+}
