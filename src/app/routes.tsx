@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { Navbar } from './components/Navbar';
 import { Toaster } from './components/ui/sonner';
 import { OAuth2RedirectHandler } from './auth/OAuth2RedirectHandler';
+import { Footer } from './components/Footer';
 import LoginPage from "./pages/LoginPage";
 import  ProtectedRoute  from './routes/ProtectedRoute'; // 🚀 Import your new gatekeeper
 import  PublicOnlyRoute  from './routes/PublicOnlyRoute';
@@ -19,6 +20,7 @@ function RootLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-white">
       <Navbar />
       {children}
+      <Footer />
       <Toaster />
     </div>
   );
