@@ -9,14 +9,158 @@ import type { Quiz } from '../types/quiz';
 import {
   ArrowRight,
   BookOpenCheck,
+  BookOpen,
+  Clock,
+  Cloud,
   CheckCircle2,
   LogIn,
+  Gauge,
   Play,
   ShieldCheck,
   Sparkles,
   Target,
   Trophy,
 } from 'lucide-react';
+
+const difficultyStyles: Record<string, string> = {
+  beginner: "bg-emerald-50 text-emerald-700",
+  intermediate: "bg-amber-50 text-amber-700",
+  advanced: "bg-red-50 text-red-700",
+};
+
+function FeaturedLeadCard({ quiz }: { quiz: Quiz }) {
+  return (
+    <Link
+      to={`/quiz/${quiz.id}/instructions`}
+      className="group relative flex min-h-[360px] flex-col justify-between overflow-hidden rounded-[1.75rem] bg-[#102b78] p-7 text-white shadow-[0_24px_50px_-32px_rgba(15,39,110,0.9)] transition-transform duration-300 hover:-translate-y-1 sm:p-9"
+    >
+      <div className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full border-[42px] border-white/[0.05]" />
+      <div className="relative">
+        <div className="mb-8 flex items-center justify-between">
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-blue-100">
+            Editor&apos;s pick
+          </span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#10b981] transition-transform group-hover:rotate-[-8deg] group-hover:scale-105">
+            <ArrowRight className="h-5 w-5" />
+          </span>
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">
+          {quiz.category?.name}
+        </p>
+        <h3 className="mt-3 max-w-md text-3xl font-bold leading-tight tracking-[-0.035em] sm:text-4xl">
+          {quiz.title}
+        </h3>
+        <p className="mt-4 max-w-md text-sm leading-6 text-blue-100/70">
+          {quiz.description || "Build exam confidence with a focused set of realistic certification questions."}
+        </p>
+      </div>
+      <div className="relative mt-8 flex flex-wrap items-center gap-4 border-t border-white/10 pt-5 text-xs font-semibold text-blue-100">
+        <span className="flex items-center gap-2"><BookOpen className="h-4 w-4" />{quiz.totalQuestions} questions</span>
+        <span className="flex items-center gap-2"><Clock className="h-4 w-4" />{quiz.durationMinutes} minutes</span>
+        <span className="capitalize text-emerald-300">{quiz.difficulty}</span>
+      </div>
+    </Link>
+  );
+}
+
+function FeaturedMiniCard({ quiz, index }: { quiz: Quiz; index: number }) {
+  const number = String(index + 1).padStart(2, "0");
+  return (
+    <Link
+      to={`/quiz/${quiz.id}/instructions`}
+      className="group flex min-h-40 flex-col justify-between rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.5)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_38px_-24px_rgba(30,64,175,0.35)] sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <span className="text-xs font-bold tracking-[0.16em] text-slate-300">{number}</span>
+        <ArrowRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-1 group-hover:text-[#1e40af]" />
+      </div>
+      <div className="mt-5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#1e40af]">{quiz.category?.name}</p>
+        <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug tracking-tight text-slate-900 group-hover:text-[#1e40af]">
+          {quiz.title}
+        </h3>
+        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+          <span>{quiz.totalQuestions} questions · {quiz.durationMinutes} min</span>
+          <span className={`rounded-full px-2 py-1 text-[10px] font-bold capitalize ${difficultyStyles[quiz.difficulty]}`}>
+            {quiz.difficulty}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+
+function CloudTrackSection({
+  title,
+  subtitle,
+  quizzes,
+  href,
+  provider,
+}: {
+  title: string;
+  subtitle: string;
+  quizzes: Quiz[];
+  href: string;
+  provider: "azure" | "aws";
+}) {
+  const isAzure = provider === "azure";
+
+  return (
+    <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white">
+      <div className={`relative overflow-hidden px-6 py-7 sm:px-8 ${isAzure ? "bg-[#edf6ff]" : "bg-[#fff7e8]"}`}>
+        <div className={`absolute right-0 top-0 h-full w-1.5 ${isAzure ? "bg-[#0078d4]" : "bg-[#ff9900]"}`} />
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <Cloud className={`h-4 w-4 ${isAzure ? "text-[#0078d4]" : "text-[#c76f00]"}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isAzure ? "text-[#0078d4]" : "text-[#9a5600]"}`}>
+                {provider} learning track
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold tracking-[-0.025em] text-slate-950">{title}</h2>
+            <p className="mt-2 max-w-md text-sm text-slate-600">{subtitle}</p>
+          </div>
+          <Link
+            to={href}
+            aria-label={`View all ${provider} quizzes`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-900/10 bg-white text-slate-700 transition-all hover:scale-105 hover:text-[#1e40af]"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+
+      <div className="divide-y divide-slate-100 px-6 sm:px-8">
+        {quizzes.map((quiz, index) => (
+          <Link
+            key={quiz.id}
+            to={`/quiz/${quiz.id}/instructions`}
+            className="group flex items-center gap-4 py-5"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${isAzure ? "bg-blue-50 text-[#0078d4]" : "bg-orange-50 text-[#b96300]"}`}>
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-[#1e40af]">{quiz.title}</h3>
+              <p className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+                <span>{quiz.totalQuestions} questions</span>
+                <span>{quiz.durationMinutes} min</span>
+                <span className="capitalize">{quiz.difficulty}</span>
+              </p>
+            </div>
+            <Play className="h-4 w-4 shrink-0 text-slate-300 transition-all group-hover:translate-x-1 group-hover:text-[#1e40af]" />
+          </Link>
+        ))}
+        {quizzes.length === 0 && (
+          <p className="py-8 text-sm text-slate-500">New quizzes are being prepared for this track.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+
 
 export function Dashboard() {
   const { isLoggedIn } = useUser();
@@ -95,36 +239,6 @@ export function Dashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Hero Section */}
-      {/* <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e40af] via-blue-700 to-indigo-800 px-6 py-12 sm:px-10 sm:py-16 lg:px-14 mb-12 text-white shadow-xl">
-        <div className="absolute -right-16 -top-20 h-72 w-72 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-24 right-1/3 h-56 w-56 rounded-full bg-indigo-300/20 blur-2xl" />
-        <div className="relative max-w-3xl">
-          <span className="inline-flex items-center rounded-full border border-white/30 bg-white/10 px-3 py-1 text-sm font-medium text-blue-50">
-            Free certification practice exams
-          </span>
-          <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Get ready for your next certification
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-blue-100 sm:text-xl">
-            Build confidence with practice exams for AWS, Azure, and more. Learn at your own pace and take your next step toward certification—for free.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link to="/quizzes">
-              <Button className="w-full gap-2 bg-white text-[#1e40af] hover:bg-blue-50 sm:w-auto">
-                Explore practice exams
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2 text-sm text-blue-100 sm:ml-2">
-              <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5">AWS</span>
-              <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5">Microsoft Azure</span>
-              <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5">And more</span>
-            </div>
-          </div>
-        </div>
-      </section> */}
-
-
       <section className="relative mb-14 overflow-hidden rounded-[2rem] bg-[#102b78] text-white shadow-[0_28px_70px_-34px_rgba(30,64,175,0.75)]">
         <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border-[56px] border-white/[0.05]" />
         <div className="pointer-events-none absolute -bottom-36 left-[42%] h-72 w-72 rounded-full border-[44px] border-[#10b981]/10" />
@@ -178,61 +292,67 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center bg-[#173a91] px-6 py-10 sm:px-12 lg:px-10">
+          <div className="relative flex items-center justify-center bg-[#0d245c] px-6 py-10 sm:px-12 lg:px-10">
             <div className="relative w-full max-w-md">
-              <div className="absolute -left-5 top-10 hidden h-24 w-1 rounded-full bg-[#10b981] lg:block" />
-              <div className="rounded-[1.5rem] border border-white/15 bg-[#f8fafc] p-3 text-slate-900 shadow-[0_30px_70px_-24px_rgba(2,6,23,0.65)]">
-                <div className="rounded-[1.15rem] bg-white p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.13em] text-[#1e40af]">
-                        <Target className="h-4 w-4" />
-                        Today&apos;s plan
-                      </div>
-                      <h2 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
-                        Azure Fundamentals
-                      </h2>
-                    </div>
-                    <div className="rounded-xl bg-blue-50 p-2.5 text-[#1e40af]">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div className="mt-7">
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-500">Weekly readiness</span>
-                      <span className="text-[#059669]">72%</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full w-[72%] rounded-full bg-[#10b981]" />
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <BookOpenCheck className="mb-3 h-5 w-5 text-[#1e40af]" />
-                      <p className="text-lg font-bold text-slate-950">24</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Questions today</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <Trophy className="mb-3 h-5 w-5 text-amber-500" />
-                      <p className="text-lg font-bold text-slate-950">8 day</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Study streak</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between rounded-xl bg-[#102b78] p-4 text-white">
-                    <div>
-                      <p className="text-sm font-semibold">Practice set 04</p>
-                      <p className="mt-1 text-xs text-blue-200">15 questions · 18 min</p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#10b981] shadow-lg shadow-emerald-950/20">
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </div>
+              <div className="mb-6 flex items-center justify-between text-white">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">Readiness snapshot</p>
+                  <h2 className="mt-2 text-xl font-bold">Azure Fundamentals</h2>
                 </div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+                  <ShieldCheck className="h-5 w-5 text-blue-100" />
+                </span>
               </div>
 
+              <div className="rounded-[1.6rem] bg-white p-5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.75)] sm:p-6">
+                <div className="flex items-center gap-5 border-b border-slate-100 pb-6">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-[conic-gradient(#10b981_0_72%,#dbeafe_72%_100%)] p-2">
+                    <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+                      <span className="text-2xl font-bold tracking-tight text-slate-950">72%</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">ready</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-[#10b981]" />
+                      <span className="text-xs font-bold text-emerald-700">On track</span>
+                    </div>
+                    <p className="text-sm font-bold leading-5 text-slate-900">One more focused session could move you into exam range.</p>
+                    <p className="mt-2 text-xs text-slate-500">Strongest topic: Cloud concepts</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <Link
+                    to="/category/azure"
+                    className="group rounded-2xl bg-[#eef4ff] p-4 transition-colors hover:bg-[#e3ecff]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1e40af] text-white">
+                        <BookOpenCheck className="h-4 w-4" />
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-blue-300 transition-transform group-hover:translate-x-1" />
+                    </div>
+                    <p className="mt-4 text-sm font-bold text-slate-900">Practice mode</p>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500">Hints and instant explanations</p>
+                  </Link>
+
+                  <Link
+                    to="/quizzes"
+                    className="group rounded-2xl bg-slate-950 p-4 text-white transition-colors hover:bg-[#1e40af]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                        <Target className="h-4 w-4" />
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-slate-500 transition-all group-hover:translate-x-1 group-hover:text-white" />
+                    </div>
+                    <p className="mt-4 text-sm font-bold">Real exam mode</p>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-400 group-hover:text-blue-100">Timed, focused and distraction-free</p>
+                  </Link>
+                </div>
+              </div>
+              
               <div className="absolute -bottom-5 -left-3 flex items-center gap-3 rounded-xl border border-white/20 bg-white px-4 py-3 text-slate-900 shadow-xl sm:-left-8">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
                   <CheckCircle2 className="h-4 w-4 text-[#059669]" />
@@ -246,7 +366,6 @@ export function Dashboard() {
           </div>
         </div>
       </section>
-
 
       {error && (
         <div className="mb-8 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
@@ -310,63 +429,65 @@ export function Dashboard() {
         </div>
       </section>
 
-      {/* Featured Quizzes */}
+      
+      {/* Featured Quizzes Section */}
       {displayFeatured.length > 0 && (
-        <section className="mb-12">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">
-              Featured Quizzes
-            </h2>
-
-            <Link to="/quizzes">
-              <Button variant="outline" className="gap-2">
-                View All Quizzes
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+        <section className="mb-16 rounded-[2rem] bg-slate-50 px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
+          <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#1e40af]">
+                <Gauge className="h-4 w-4" />
+                Recommended for you
+              </div>
+              <h2 className="text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">Featured quizzes</h2>
+              <p className="mt-2 text-sm text-slate-500">High-impact practice sets across today&apos;s most valuable certifications.</p>
+            </div>
+            <Link
+              to="/quizzes"
+              className="group flex w-fit items-center gap-2 text-sm font-bold text-[#1e40af]"
+            >
+              Browse the full library
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayFeatured.map((quiz) => (
-              <QuizCard key={quiz.id} quiz={quiz} />
-            ))}
+          <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid gap-5 sm:grid-cols-2">
+              {displayFeatured.slice(1, 5).map((quiz, index) => (
+                <FeaturedMiniCard key={quiz.id} quiz={quiz} index={index + 1} />
+              ))}
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {displayFeatured.slice(4, 7).map((quiz, index) => (
+                <FeaturedMiniCard key={quiz.id} quiz={quiz} index={index + 1} />
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* Azure */}
-      {azureQuizzes.length > 0 && (
-        <section className="mb-12">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">
-              Latest in Azure
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {azureQuizzes.map((quiz) => (
-              <QuizCard key={quiz.id} quiz={quiz} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* AWS */}
-      {awsQuizzes.length > 0 && (
-        <section>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold">
-              Latest in AWS
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {awsQuizzes.map((quiz) => (
-              <QuizCard key={quiz.id} quiz={quiz} />
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Latest cloud tracks */}
+      <div className="mb-4">
+        <div className="mb-7">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1e40af]">Keep exploring</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-[-0.03em] text-slate-950">Latest cloud practice</h2>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <CloudTrackSection
+            title="Latest in Azure"
+            subtitle="Build fluency across cloud concepts, governance, pricing, and core Azure services."
+            quizzes={azureQuizzes}
+            href="/category/azure"
+            provider="azure"
+          />
+          <CloudTrackSection
+            title="Latest in AWS"
+            subtitle="Sharpen your understanding of AWS services, security, architecture, and cloud economics."
+            quizzes={awsQuizzes}
+            href="/category/aws"
+            provider="aws"
+          />
+        </div>
+      </div>
     </div>
   );
 }
