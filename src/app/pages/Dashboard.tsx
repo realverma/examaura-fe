@@ -2,15 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { QuizCard } from '../components/QuizCard';
+import { FeaturedMiniCard } from '../components/FeaturedMiniCard';
+import { LibraryQuizCard } from '../components/LibraryQuizCard';
 import { useUser } from '../context/UserContext';
 import api from '../api/axiosConfig';
 import type { Quiz } from '../types/quiz';
 import {
   ArrowRight,
   BookOpenCheck,
-  BookOpen,
-  Clock,
   Cloud,
   CheckCircle2,
   LogIn,
@@ -19,76 +18,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
-  Trophy,
 } from 'lucide-react';
-
-const difficultyStyles: Record<string, string> = {
-  beginner: "bg-emerald-50 text-emerald-700",
-  intermediate: "bg-amber-50 text-amber-700",
-  advanced: "bg-red-50 text-red-700",
-};
-
-function FeaturedLeadCard({ quiz }: { quiz: Quiz }) {
-  return (
-    <Link
-      to={`/quiz/${quiz.id}/instructions`}
-      className="group relative flex min-h-[360px] flex-col justify-between overflow-hidden rounded-[1.75rem] bg-[#102b78] p-7 text-white shadow-[0_24px_50px_-32px_rgba(15,39,110,0.9)] transition-transform duration-300 hover:-translate-y-1 sm:p-9"
-    >
-      <div className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full border-[42px] border-white/[0.05]" />
-      <div className="relative">
-        <div className="mb-8 flex items-center justify-between">
-          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-blue-100">
-            Editor&apos;s pick
-          </span>
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#10b981] transition-transform group-hover:rotate-[-8deg] group-hover:scale-105">
-            <ArrowRight className="h-5 w-5" />
-          </span>
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">
-          {quiz.category?.name}
-        </p>
-        <h3 className="mt-3 max-w-md text-3xl font-bold leading-tight tracking-[-0.035em] sm:text-4xl">
-          {quiz.title}
-        </h3>
-        <p className="mt-4 max-w-md text-sm leading-6 text-blue-100/70">
-          {quiz.description || "Build exam confidence with a focused set of realistic certification questions."}
-        </p>
-      </div>
-      <div className="relative mt-8 flex flex-wrap items-center gap-4 border-t border-white/10 pt-5 text-xs font-semibold text-blue-100">
-        <span className="flex items-center gap-2"><BookOpen className="h-4 w-4" />{quiz.totalQuestions} questions</span>
-        <span className="flex items-center gap-2"><Clock className="h-4 w-4" />{quiz.durationMinutes} minutes</span>
-        <span className="capitalize text-emerald-300">{quiz.difficulty}</span>
-      </div>
-    </Link>
-  );
-}
-
-function FeaturedMiniCard({ quiz, index }: { quiz: Quiz; index: number }) {
-  const number = String(index + 1).padStart(2, "0");
-  return (
-    <Link
-      to={`/quiz/${quiz.id}/instructions`}
-      className="group flex min-h-40 flex-col justify-between rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.5)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_38px_-24px_rgba(30,64,175,0.35)] sm:p-6"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <span className="text-xs font-bold tracking-[0.16em] text-slate-300">{number}</span>
-        <ArrowRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-1 group-hover:text-[#1e40af]" />
-      </div>
-      <div className="mt-5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#1e40af]">{quiz.category?.name}</p>
-        <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug tracking-tight text-slate-900 group-hover:text-[#1e40af]">
-          {quiz.title}
-        </h3>
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-          <span>{quiz.totalQuestions} questions · {quiz.durationMinutes} min</span>
-          <span className={`rounded-full px-2 py-1 text-[10px] font-bold capitalize ${difficultyStyles[quiz.difficulty]}`}>
-            {quiz.difficulty}
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 
 function CloudTrackSection({
@@ -215,6 +145,8 @@ export function Dashboard() {
     featuredQuizzes.length > 0
       ? featuredQuizzes
       : quizzes.slice(0, 6);
+
+      console.log("displayFeatured:", displayFeatured);
 
   const azureQuizzes = quizzes
     .filter((quiz) =>
@@ -452,13 +384,13 @@ export function Dashboard() {
           </div>
           <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="grid gap-5 sm:grid-cols-2">
-              {displayFeatured.slice(1, 5).map((quiz, index) => (
-                <FeaturedMiniCard key={quiz.id} quiz={quiz} index={index + 1} />
+              {displayFeatured.slice(0, 4).map((quiz, index) => (
+                <FeaturedMiniCard key={quiz.id} quiz={quiz} index={index} />
               ))}
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              {displayFeatured.slice(4, 7).map((quiz, index) => (
-                <FeaturedMiniCard key={quiz.id} quiz={quiz} index={index + 1} />
+              {displayFeatured.slice(4, 6).map((quiz, index) => (
+                <LibraryQuizCard key={quiz.id} quiz={quiz} index={index} />
               ))}
             </div>
           </div>
