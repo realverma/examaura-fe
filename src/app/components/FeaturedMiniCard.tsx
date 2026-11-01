@@ -1,22 +1,12 @@
 import { Link } from 'react-router';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Clock, FileText, ArrowRight } from 'lucide-react';
 import type { Quiz } from '../types/quiz';
+import {
+  ArrowRight,
+} from 'lucide-react';
 
-interface QuizCardProps {
-  quiz: Quiz;
-}
 
-const difficultyStyles: Record<string, string> = {
-  beginner: "bg-emerald-50 text-emerald-700",
-  intermediate: "bg-amber-50 text-amber-700",
-  advanced: "bg-red-50 text-red-700",
-};
-
-export function QuizCard({ quiz }: QuizCardProps) {
-  const number = String(1 + 1).padStart(2, "0");
+export function FeaturedMiniCard({ quiz, index }: { quiz: Quiz; index: number }) {
+  const number = String(index + 1).padStart(2, "0");
   return (
     <Link
       to={`/quiz/${quiz.id}/instructions`}
@@ -33,7 +23,7 @@ export function QuizCard({ quiz }: QuizCardProps) {
         </h3>
         <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
           <span>{quiz.totalQuestions} questions · {quiz.durationMinutes} min</span>
-          <span className={`rounded-full px-2 py-1 text-[10px] font-bold capitalize ${difficultyStyles[quiz.difficulty]}`}>
+          <span className={`rounded-full px-2 py-1 text-[10px] font-bold capitalize bg-[aliceblue]`}>
             {quiz.difficulty}
           </span>
         </div>
