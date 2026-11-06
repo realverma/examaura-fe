@@ -2,7 +2,7 @@ import {
   createContext,
   useContext,
   useState,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useMemo,
   useEffect,
@@ -31,14 +31,27 @@ interface LoginResponse {
   avatarUrl?: string | null;
 }
 
+interface JwtPayload {
+  userId?: string;
+  fullName?: string;
+  name?: string;
+  sub?: string;
+  role?: string;
+  avatarUrl?: string;
+  exp?: number;
+}
+
 interface UserContextType {
   user: User | null;
   isLoggedIn: boolean;
+  isLoading: boolean;
+
   loginWithToken: (
     token: string,
-    refreshToken: string, // 🚀 Fixed type definition to require the refresh token
+    refreshToken: string,
     userData?: LoginResponse
   ) => void;
+
   logout: () => void;
 }
 
@@ -46,33 +59,36 @@ const UserContext = createContext<UserContextType | undefined>(
   undefined
 );
 
-function decodeToken(token: string): any {
+// Decode JWT payload
+function decodeToken(token: string): JwtPayload | null {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url
+    const parts = token.split('.');
+
+    if (parts.length !== 3) return null;
+
+    const base64 = parts[1]
       .replace(/-/g, '+')
       .replace(/_/g, '/');
 
-    const paddedBase64 = base64.padEnd(
+    const padded = base64.padEnd(
       base64.length + ((4 - (base64.length % 4)) % 4),
       '='
     );
 
-    const jsonPayload = decodeURIComponent(
+    const decoded = decodeURIComponent(
       window
-        .atob(paddedBase64)
+        .atob(padded)
         .split('')
         .map(
-          (c) =>
+          (char) =>
             '%' +
-            ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+            char.charCodeAt(0).toString(16).padStart(2, '0')
         )
         .join('')
     );
 
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Failed to decode token:', error);
+    return JSON.parse(decoded) as JwtPayload;
+  } catch {
     return null;
   }
 }
@@ -83,41 +99,48 @@ export function UserProvider({
   children: ReactNode;
 }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 🚀 Updated to clear both tracking tokens on sign-out
+  // Logout
   const logout = useCallback(() => {
     setUser(null);
+
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
   }, []);
 
-  /**
-   * App startup / page refresh
-   */
+  // Restore user session on application startup
   useEffect(() => {
+    const controller = new AbortController();
+
     const initializeUser = async () => {
-      console.log('App startup...'); // Debug log to track initialization
-      const token = localStorage.getItem('token');
-
-      if (!token) return;
-
       try {
-        console.log('enterred try'); // Debug log before decoding
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+          return;
+        }
+
         const payload = decodeToken(token);
 
-        // 🚀 Make sure the payload is entirely valid before fetching
-        if (!payload || !payload.userId) {
-          console.warn("Invalid token payload or missing userId. Logging out.");
+        if (
+          !payload ||
+          !payload.userId
+        ) {
           logout();
           return;
         }
 
-        // Note: If this token is expired, your new Axios interceptor 
-        // will automatically catch it here and run the refresh cycle seamlessly!
-        const response = await api.get(`/users/${payload.userId}`);
+        const response = await api.get(
+          `/users/${encodeURIComponent(payload.userId)}`,
+          {
+            signal: controller.signal,
+          }
+        );
+
+        if (controller.signal.aborted) return;
 
         const userData = response.data;
-        console.log("Fetched user data on app init:", userData); // Debug log to verify fetched user data
 
         setUser({
           id: userData.id,
@@ -127,27 +150,66 @@ export function UserProvider({
           avatar: userData.avatarUrl || DEFAULT_AVATAR,
         });
       } catch (error) {
-        console.log("error in catch"); // Debug log to track error handling
-        console.error(
-          'Failed to restore user session:',
-          error
-        );
-        logout();
+        if (controller.signal.aborted) return;
+
+        console.error('User initialization failed:', error);
+
+        // Only clear credentials for authentication failures.
+        // Preserve them during network/server failures.
+        const status = (
+          error as {
+            response?: { status?: number };
+          }
+        ).response?.status;
+
+        if (status === 401 || status === 403) {
+          logout();
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
     initializeUser();
+
+    return () => {
+      controller.abort();
+    };
   }, [logout]);
 
-  /**
-   * Called after successful login/register or OAuth2 Redirect
-   */
+  
+useEffect(() => {
+  const handleSessionExpired = () => {
+    logout();
+    setIsLoading(false);
+  };
+
+  window.addEventListener(
+    'auth:session-expired',
+    handleSessionExpired
+  );
+
+  return () => {
+    window.removeEventListener(
+      'auth:session-expired',
+      handleSessionExpired
+    );
+  };
+}, [logout]);
+
+
+  // Login / OAuth2
   const loginWithToken = useCallback(
-    (token: string, refreshToken: string, userData?: LoginResponse) => {
+    (
+      token: string,
+      refreshToken: string,
+      userData?: LoginResponse
+    ) => {
       localStorage.setItem('token', token);
       localStorage.setItem('refreshToken', refreshToken);
 
-      console.log("login/register", userData); // Debug log to verify user data on login/register
       if (userData) {
         setUser({
           id: userData.userId,
@@ -156,37 +218,45 @@ export function UserProvider({
           role: userData.role,
           avatar: userData.avatarUrl || DEFAULT_AVATAR,
         });
-         // Debug log to verify user state after login/register
       } else {
-        // 🚀 FALLBACK FOR OAUTH2 redirects:
-        // Decode the incoming JWT to instantly set up state context so 
-        // the app logs them in immediately without waiting for a refresh.
         const payload = decodeToken(token);
-        console.log("Decoded token payload on login:", payload); // Debug log to verify payload structure
-        if (payload) {
-          setUser({
-            id: payload.userId || '',
-            name: payload.fullName || payload.name || payload.sub || 'OAuth User',
-            email: payload.sub || '',
-            role: payload.role || 'VIEWER',
-            avatar: payload.avatarUrl || DEFAULT_AVATAR,
-          });
-        }
-      }
-    },
-    []
-  );
 
-  console.log("Current user state:", user); // Debug log to track user state changes
+        if (
+          !payload ||
+          !payload.userId
+        ) {
+          logout();
+          setIsLoading(false);
+          return;
+        }
+
+        setUser({
+          id: payload.userId,
+          name:
+            payload.fullName ||
+            payload.name ||
+            payload.sub ||
+            'OAuth User',
+          email: payload.sub || '',
+          role: payload.role || 'VIEWER',
+          avatar: payload.avatarUrl || DEFAULT_AVATAR,
+        });
+      }
+
+      setIsLoading(false);
+    },
+    [logout]
+  );
 
   const contextValue = useMemo(
     () => ({
       user,
       isLoggedIn: !!user,
+      isLoading,
       loginWithToken,
       logout,
     }),
-    [user, loginWithToken, logout]
+    [user, isLoading, loginWithToken, logout]
   );
 
   return (

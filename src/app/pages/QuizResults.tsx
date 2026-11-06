@@ -1,488 +1,254 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router';
-import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Trophy, Clock, CheckCircle, XCircle, Home, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { motion } from 'motion/react';
 import confetti from 'canvas-confetti';
-import { formatDuration } from '../components/ui/utils';
-import api from '../api/axiosConfig'; // 🛡️ Uses your authenticated Axios instance
+import {
+  ArrowRight, Award, BookOpen, CheckCircle2, Clock, Home,
+  Lightbulb, Loader2, Minus, RotateCcw, Target, XCircle
+} from 'lucide-react';
+import { useQuizResultsData } from '../hooks/useQuizResultsData';
+import { AnswerDetails } from '../components/AnswerDetails';
+import { ReviewFilter, ReviewStatus } from '../types/attempt';
 
 export function QuizResults() {
   const { quizId } = useParams<{ quizId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  
   const attemptId = searchParams.get('attemptId');
 
-  // Unified Loading and Data State
-  const [loading, setLoading] = useState(true);
-  const [results, setResults] = useState<any>(null);
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [quiz, setQuiz] = useState<any>(null);
-  const [confettiTriggered, setConfettiTriggered] = useState(false);
+  const { loading, questions, summary, results } = useQuizResultsData(quizId, attemptId);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all');
+  const confettiTriggered = useRef(false);
 
   useEffect(() => {
-    const fetchQuizResultsAndDetails = async () => {
-      if (!attemptId || !quizId) {
-        navigate('/');
-        return;
-      }
+    if (!loading && (!results || !summary)) navigate('/');
+  }, [loading, results, summary, navigate]);
 
-      try {
-        // 1. Fetch the attempt summary grading report from backend
-        const summaryRes = await api.get(`/attempts/${attemptId}/summary`);
-        const summaryData = summaryRes.data;
-        setSummaryData(summaryData);
-        // 2. Fetch Quiz Details and Questions for the Review section
-        const quizRes = await api.get(`/quizzes/${quizId}`);
-        const questionsRes = await api.get(`/quizzes/${quizId}/questions?size=100`);
-        const rawQuestions = questionsRes.data.content || questionsRes.data.data || questionsRes.data;
-
-        // --- DATA ADAPTER: Same parsing logic used in ActiveQuiz to normalize keys ---
-        const formattedQuestions = rawQuestions.map((q: any) => {
-          const rawType = q.questionType || q.type || '';
-          const mappedType = rawType.toLowerCase().replace(/_/g, '-');
-
-          const parseJSON = (val: any) => {
-            if (typeof val === 'string') {
-              try { return JSON.parse(val); } catch (e) { return null; }
-            }
-            return val;
-          };
-
-          const mappedQ: any = {
-            ...q,
-            id: q.id,
-            text: q.questionText || q.text,
-            type: mappedType,
-            explanation: q.explanation,
-            questionImage: q.questionImageUrl,
-            options: parseJSON(q.options),
-            correctAnswer: parseJSON(q.correctAnswer),
-          };
-
-          if (mappedType === 'yes-no-grid') {
-            mappedQ.statements = parseJSON(q.matchPairs || q.statements);
-          } else if (mappedType === 'drag-match') {
-            mappedQ.matchPairs = parseJSON(q.matchPairs);
-          } else {
-            mappedQ.statements = parseJSON(q.statements);
-            mappedQ.matchPairs = parseJSON(q.matchPairs);
-          }
-
-          mappedQ.categories = parseJSON(q.categories);
-          mappedQ.classifyItems = parseJSON(q.classifyItems);
-          mappedQ.dropdownRows = parseJSON(q.dropdownRows);
-          mappedQ.inlineDropdowns = parseJSON(q.inlineDropdowns);
-
-          return mappedQ;
-        });
-
-        // Add adapted questions into localized quiz state
-        setQuiz({ ...quizRes.data, questions: formattedQuestions });
-
-        // 3. Map backend answer arrays to the frontend's index-based structure
-        const answersMap: Record<number, any> = {};
-        const backendAnswers = summaryData.questionAnswers || summaryData.submittedAnswers || [];
-
-        formattedQuestions.forEach((question: any, index: number) => {
-          const matchingAnswer = backendAnswers.find((a: any) => a.questionId === question.id);
-          if (matchingAnswer) {
-            let userAnsPayload = matchingAnswer.userAnswer;
-            if (typeof userAnsPayload === 'string') {
-              try { userAnsPayload = JSON.parse(userAnsPayload); } catch (e) {}
-            }
-            answersMap[index] = userAnsPayload;
-          }
-        });
-
-        // 4. Construct consistent results object matching your original view properties
-        setResults({
-          score: summaryData.score !== undefined ? summaryData.score : summaryData.percentage,
-          passedPercentage: summaryData.passedScore,
-          correctAnswers: summaryData.correctAnswers !== undefined ? summaryData.correctAnswers : summaryData.scoreCount,
-          totalQuestions: summaryData.totalQuestions || formattedQuestions.length,
-          timeTaken: formatDuration(summaryData.timeTakenSeconds) || formatDuration(quizRes.data.durationMinutes * 60),
-          mode: summaryData.mode || 'REAL',
-          answers: answersMap
-        });
-
-
-        
-
-      } catch (error) {
-        console.error("Failed to load quiz summary reports:", error);
-        navigate('/');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchQuizResultsAndDetails();
-  }, [attemptId, quizId, navigate]);
-
-
-  // Confetti effect trigger
   useEffect(() => {
-    if (results && quiz && !confettiTriggered) {
-      const passed = results.passedPercentage >= (quiz.passingScore || 70);
-      if (passed) {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-        setConfettiTriggered(true);
-      }
+    if (!results || confettiTriggered.current) return;
+    if (results.isPassed) {
+      confettiTriggered.current = true;
+      confetti({ particleCount: 90, spread: 68, origin: { y: 0.55 }, colors: ['#1e40af', '#10b981', '#fbbf24'] });
     }
-  }, [results, quiz, confettiTriggered]);
+  }, [results]);
+
+  const reviewItems = useMemo(() => {
+    if (!questions.length || !summary) return [];
+    return questions.map((question, index) => {
+      const answerEntry = summary.questionAnswers?.find((qa) => qa.questionId === question.id);
+      const isUnanswered = answerEntry?.userAnswer === undefined || answerEntry?.userAnswer === null;
+      const status: ReviewStatus = isUnanswered ? 'unanswered' : answerEntry?.isCorrect ? 'correct' : 'incorrect';
+      return { question, index, userAnswer: answerEntry?.userAnswer, status };
+    });
+  }, [questions, summary]);
 
   if (loading) {
-    return <div className="p-8 text-center text-lg font-medium text-slate-600">Compiling Scorecards & Performance Analytics...</div>;
-  }
-
-  if (!results || !quiz) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
-        <p className="text-red-500 font-medium">Quiz result summary data could not be parsed.</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-8">
+        <Loader2 className="h-10 w-10 animate-spin text-[#1e40af]" />
+        <p className="mt-4 text-lg font-semibold text-slate-800">Compiling Scorecards & Performance Analytics...</p>
       </div>
     );
   }
 
-  const passed = results.passedPercentage >= (quiz.passingScore || 70);
-  const unanswered = results.totalQuestions - Object.keys(results.answers).length;
-  const incorrectAnswers = results.totalQuestions - (results.correctAnswers + unanswered);
-  
-  
-  
-  
-  // Check if a question is answered correctly
-  const checkAnswer = (questionIndex: number): boolean => {
-  const question = quiz.questions[questionIndex];
+  if (!results || !summary) return null;
 
-  const answerSummary = summaryData.questionAnswers.find(
-    (qa: any) => qa.questionId === question.id
-  );
+  const passed = results.isPassed;
+  const passingScore = summary.passingPercentage ?? 70;
+  const filteredReview = reviewFilter === 'all' ? reviewItems : reviewItems.filter((i) => i.status === reviewFilter);
+  const counts = {
+    all: reviewItems.length,
+    correct: reviewItems.filter((i) => i.status === 'correct').length,
+    incorrect: reviewItems.filter((i) => i.status === 'incorrect').length,
+    unanswered: reviewItems.filter((i) => i.status === 'unanswered').length,
+  };
 
-  return answerSummary?.isCorrect ?? false;
-};
+   const statusMeta = {
+                correct: {
+                  badgeClass: "bg-emerald-50 text-emerald-700"
+                },
+                incorrect: {
+                  badgeClass: "bg-red-50 text-red-700"
+                },
+                unanswered: {
+                  badgeClass: "bg-slate-100 text-slate-600"
+                },
+              }
 
-
-  
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Results Header */}
-        <Card className={`p-8 mb-8 text-center border-2 ${
-          passed
-            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-[#10b981]/20'
-            : 'bg-gradient-to-r from-red-50 to-rose-50 border-[#dc2626]/20'
-        }`}>
-          <div className="inline-block p-4 bg-white rounded-full mb-4 shadow-sm">
-            <Trophy className={`w-16 h-16 ${passed ? 'text-[#10b981]' : 'text-[#dc2626]'}`} />
-          </div>
-          <h1 className="text-4xl font-bold mb-2 text-slate-900">
-            {passed ? 'Congratulations!' : 'Keep Practicing!'}
-          </h1>
-          <p className="text-xl text-slate-600 mb-6">
-            You scored {results.passedPercentage}% on {quiz.title} with points {results.score}
-          </p>
-          <div className="inline-block">
-            <Badge className={`text-lg px-6 py-2 tracking-wide font-semibold ${
-              passed
-                ? 'bg-[#10b981] text-white'
-                : 'bg-[#dc2626] text-white'
-            }`}>
-              {passed ? 'PASSED' : 'FAILED'} - {results.passedPercentage}%
-            </Badge>
-          </div>
-        </Card>
-        
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6 text-center shadow-sm">
-            <div className="text-3xl font-bold text-[#1e40af]">{results.passedPercentage}%</div>
-            <p className="text-sm text-slate-600 mt-1 font-medium">Final Score</p>
-          </Card>
-          <Card className="p-6 text-center shadow-sm">
-            <div className="text-3xl font-bold text-[#10b981]">{results.correctAnswers}</div>
-            <p className="text-sm text-slate-600 mt-1 font-medium">Correct</p>
-          </Card>
-          <Card className="p-6 text-center shadow-sm">
-            <div className="text-3xl font-bold text-[#dc2626]">{incorrectAnswers}</div>
-            <p className="text-sm text-slate-600 mt-1 font-medium">Incorrect</p>
-          </Card>
-          <Card className="p-6 text-center shadow-sm">
-            <div className="flex items-center justify-center gap-2">
-              <Clock className="w-6 h-6 text-[#1e40af]" />
-              <div className="text-3xl font-bold text-[#1e40af]">{results.timeTaken}</div>
-            </div>
-            <p className="text-sm text-slate-600 mt-1 font-medium">Minutes Taken</p>
-          </Card>
-        </div>
-        
-        
-        {/* Question Review */}
-        <Card className="p-8 mb-8 shadow-sm">
-          <h2 className="text-2xl font-semibold mb-6 text-slate-900">Question Review</h2>
-          <div className="space-y-6">
-            {quiz.questions.map((question: any, index: number) => {
-              const userAnswer = results.answers[index];
-              const isCorrect = checkAnswer(index);
-              const wasAnswered = userAnswer !== undefined;
+    <div className="min-h-screen bg-[#f8fafc]">
+      {/* Hero Header */}
+      <section className={`border-b ${passed ? 'border-emerald-100 bg-[#f0faf7]' : 'border-red-100 bg-[#fff5f5]'}`}>
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div>
+              <div className={`mb-5 inline-flex items-center gap-2 rounded-full border bg-white px-3.5 py-2 text-xs font-bold ${passed ? 'border-emerald-200 text-emerald-700' : 'border-red-200 text-red-700'}`}>
+                {passed ? <Award className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+                {passed ? 'Certification benchmark reached' : `${Math.max(0, passingScore - results.passedScore)}% from benchmark`}
+              </div>
+
+              {/* Directly rendered string from backend */}
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{summary.quizCategory}</p>
               
+              <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+                {passed ? 'You passed with confidence.' : 'A strong attempt. Keep building.'}
+              </h1>
+              
+              <p className="mt-4 max-w-2xl text-slate-600">
+                Your result for <span className="font-semibold text-slate-900">{summary.quizName}</span> is ready.
+              </p>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Link to={`/quiz/${quizId}/instructions?mode=${results.mode}`} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1e40af] px-5 text-sm font-bold text-white hover:bg-[#17358f]">
+                  <RotateCcw className="h-4 w-4" /> Retake quiz
+                </Link>
+                {/* Category URL parameter formatted to lowercase */}
+                <Link to={`/category/${summary.quizCategory.toLowerCase()}`} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 hover:text-[#1e40af]">
+                  Explore {summary.quizCategory} <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Score Radial */}
+            <div className="flex items-center gap-6 rounded-3xl border border-white/80 bg-white p-6 shadow-sm">
+              <div
+                className="flex h-32 w-32 shrink-0 items-center justify-center rounded-full p-2.5"
+                style={{ background: `conic-gradient(${passed ? '#10b981' : '#dc2626'} 0 ${results.passedScore}%, #e2e8f0 ${results.passedScore}% 100%)` }}
+              >
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+                  <span className="text-4xl font-bold text-slate-950">{results.passedScore}%</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Score</span>
+                </div>
+              </div>
+              <div>
+                <p className={`text-sm font-bold ${passed ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {passed ? 'Passed' : 'Needs Practice'}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">Benchmark: <span className="font-bold text-slate-800">{passingScore}%</span></p>
+                <p className="text-sm text-slate-500">Points: <span className="font-bold text-slate-800">{results.score} pts</span></p>
+                <p className="text-sm text-slate-500">Time: <span className="font-bold text-slate-800">{results.timeTaken}</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Review Section */}
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <h2 className="text-2xl font-bold text-slate-950">Detailed Review</h2>
+          <div className="flex gap-2 overflow-x-auto">
+            {(['all', 'correct', 'incorrect', 'unanswered'] as ReviewFilter[]).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setReviewFilter(filter)}
+                className={`rounded-full px-4 py-2 text-xs font-bold capitalize transition-all ${
+                  reviewFilter === filter ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:text-[#1e40af]'
+                }`}
+              >
+                {filter} · {counts[filter]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Question Cards */}
+        <motion.div
+            key={reviewFilter}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-4"
+          >
+            {filteredReview.map(({ question, index, userAnswer, status }) => {
+              const statusMeta = {
+                correct: {
+                  label: "Correct",
+                  icon: CheckCircle2,
+                  iconClass: "bg-emerald-100 text-emerald-700",
+                  badgeClass: "bg-emerald-50 text-emerald-700",
+                  line: "bg-emerald-500",
+                },
+                incorrect: {
+                  label: "Needs review",
+                  icon: XCircle,
+                  iconClass: "bg-red-100 text-red-700",
+                  badgeClass: "bg-red-50 text-red-700",
+                  line: "bg-red-500",
+                },
+                unanswered: {
+                  label: "Skipped",
+                  icon: Minus,
+                  iconClass: "bg-slate-100 text-slate-600",
+                  badgeClass: "bg-slate-100 text-slate-600",
+                  line: "bg-slate-300",
+                },
+              }[status];
+              const StatusIcon = statusMeta.icon;
+
               return (
-                <div
-                  key={question.id}
-                  className={`p-6 border-2 rounded-xl transition-all ${
-                    !wasAnswered
-                      ? 'border-slate-300 bg-slate-50/50'
-                      : isCorrect
-                      ? 'border-[#10b981]/40 bg-green-50/40'
-                      : 'border-[#dc2626]/40 bg-red-50/40'
-                  }`}
-                >
-                  <div className="flex items-start gap-3 mb-4">
-                    {!wasAnswered ? (
-                      <div className="w-6 h-6 rounded-full bg-slate-400 flex items-center justify-center flex-shrink-0 mt-1">
-                        <span className="text-white text-xs font-bold">?</span>
+                <article key={question.id} className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
+                  <div className={`absolute bottom-0 left-0 top-0 w-1 ${statusMeta.line}`} />
+                  <div className="p-5 sm:p-7">
+                    <div className="flex items-start gap-4">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${statusMeta.iconClass}`}>
+                        <StatusIcon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-[0.13em] text-slate-400">Question {index + 1}</span>
+                          {/* <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${statusMeta.badgeClass}`}>{statusMeta.label}</span>
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-[#1e40af]">{question.questionType.replace(/_/g, ' ')}</span> */}
+                        </div>
+                        <h3 className="mt-3 text-lg font-bold leading-7 text-slate-950 sm:text-xl">{question.questionText}</h3>
                       </div>
-                    ) : isCorrect ? (
-                      <CheckCircle className="w-6 h-6 text-[#10b981] flex-shrink-0 mt-1" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-[#dc2626] flex-shrink-0 mt-1" />
-                    )}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-semibold text-sm text-slate-500">
-                          Question {index + 1}
-                        </span>
-                        <Badge variant={!wasAnswered ? 'outline' : isCorrect ? 'default' : 'destructive'}>
-                          {!wasAnswered ? 'Unanswered' : isCorrect ? 'Correct' : 'Incorrect'}
-                        </Badge>
-                      </div>
-                      <p className="font-semibold text-lg mb-4 text-slate-900">{question.questionText || question.text}</p>
-                      
-                      {/* Options rendering for choice architectures */}
-                      {(question.type === 'objective' || question.type === 'multiple-choice') && question.options && (
-                        <div className="space-y-2 mb-4">
-                          {question.options.map((option: string, optionIndex: number) => {
-                            const correctAnswers =
-                                question.type === 'multiple-choice'
-                                  ? question.correctAnswer.answers ?? []
-                                  : [question.correctAnswer.answer];
-                            
-                            const userAnswers =
-                                    Array.isArray(userAnswer)
-                                      ? userAnswer
-                                      : userAnswer !== undefined && userAnswer !== null
-                                        ? [userAnswer]
-                                        : [];
-                            
-                            const isUserAnswer = userAnswers.includes(optionIndex);
-                            const isCorrectAnswer = correctAnswers.includes(optionIndex);
-                            
-                            return (
-                              <div
-                                key={optionIndex}
-                                className={`p-3 rounded-lg border-2 ${
-                                  isCorrectAnswer
-                                    ? 'border-[#10b981] bg-green-100/60'
-                                    : isUserAnswer
-                                    ? 'border-[#dc2626] bg-red-100/60'
-                                    : 'border-slate-200 bg-white'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  {isCorrectAnswer && (
-                                    <CheckCircle className="w-4 h-4 text-[#10b981]" />
-                                  )}
-                                  {isUserAnswer && !isCorrectAnswer && (
-                                    <XCircle className="w-4 h-4 text-[#dc2626]" />
-                                  )}
-                                  <span className={isCorrectAnswer || isUserAnswer ? 'font-semibold text-slate-900' : 'text-slate-700'}>
-                                    {option}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                    </div>
 
-                      {/* Detailed answer review for non-objective/mc types */}
-                      {question.type === 'yes-no-grid' && wasAnswered && question.statements && (
-                        <div className="mb-4 space-y-2">
-                          {question.statements.map((stmt: any) => {
-                            const userVal = userAnswer?.[stmt.id];
-                            const correct = stmt.correctAnswer;
-                            const isStmtCorrect = userVal === correct;
-                            return (
-                              <div key={stmt.id} className={`p-3 rounded-lg border-2 text-sm ${isStmtCorrect ? 'border-[#10b981] bg-green-50' : 'border-[#dc2626] bg-red-50'}`}>
-                                <div className="flex items-start justify-between gap-4">
-                                  <span className="flex-1">{stmt.text}</span>
-                                  <div className="flex gap-3 text-xs flex-shrink-0">
-                                    <span className={`font-medium ${isStmtCorrect ? 'text-[#10b981]' : 'text-[#dc2626]'}`}>
-                                      Your answer: <strong>{userVal ? userVal.toUpperCase() : '—'}</strong>
-                                    </span>
-                                    {!isStmtCorrect && (
-                                      <span className="font-medium text-[#10b981]">
-                                        Correct: <strong>{correct.toUpperCase()}</strong>
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                    <div className="mt-6 sm:ml-14">
+                      <AnswerDetails question={question} userAnswer={userAnswer} />
+                      <div className="mt-4 rounded-xl border border-blue-100 bg-[#f3f7ff] p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#1e40af] shadow-sm">
+                            <Lightbulb className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#1e40af]">Why this is correct</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-700">{question.explanation}</p>
+                          </div>
                         </div>
-                      )}
-
-                      {question.type === 'drag-match' && wasAnswered && question.matchPairs && (
-                        <div className="mb-4 space-y-2">
-                          {question.matchPairs.map((pair : any) => {
-                            const matchedTermId = userAnswer?.[pair.id];
-                            const matchedTerm = question.matchPairs?.find(p => p.id === matchedTermId)?.term;
-                            const isPairCorrect = matchedTermId === pair.id;
-                            return (
-                              <div key={pair.id} className={`p-3 rounded-lg border-2 text-sm ${isPairCorrect ? 'border-[#10b981] bg-green-50' : 'border-[#dc2626] bg-red-50'}`}>
-                                <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                                  <span className="text-slate-700">{pair.definition}</span>
-                                  <span className="text-slate-400 text-xs">→</span>
-                                  <div>
-                                    <span className={`font-medium block ${isPairCorrect ? 'text-[#10b981]' : 'text-[#dc2626]'}`}>
-                                      {matchedTerm || '(not matched)'}
-                                    </span>
-                                    {!isPairCorrect && (
-                                      <span className="text-xs text-[#10b981]">Correct: {pair.term}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {question.type === 'drag-classify' && wasAnswered && question.categories && question.classifyItems && (
-                        <div className="mb-4 space-y-3">
-                          {question.categories.map((cat : any) => {
-                            const userItemIds: string[] = userAnswer?.[cat.id] || [];
-                            const correctItemIds = question.classifyItems!.filter(i => i.correctCategoryId === cat.id).map(i => i.id);
-                            return (
-                              <div key={cat.id} className="border-2 border-slate-200 rounded-lg overflow-hidden">
-                                <div className="bg-slate-100 px-3 py-2 font-medium text-sm">{cat.name}</div>
-                                <div className="p-3 space-y-1">
-                                  {question.classifyItems!.map((item : any) => {
-                                    const isInThisCat = userItemIds.includes(item.id);
-                                    const shouldBeHere = item.correctCategoryId === cat.id;
-                                    if (!isInThisCat && !shouldBeHere) return null;
-                                    const itemCorrect = isInThisCat && shouldBeHere;
-                                    const wrongHere = isInThisCat && !shouldBeHere;
-                                    const missingHere = !isInThisCat && shouldBeHere;
-                                    return (
-                                      <div key={item.id} className={`px-3 py-1.5 rounded text-sm flex items-center gap-2 ${
-                                        itemCorrect ? 'bg-green-100 text-[#10b981]' :
-                                        wrongHere ? 'bg-red-100 text-[#dc2626]' :
-                                        'bg-yellow-50 text-amber-700 border border-dashed border-amber-300'
-                                      }`}>
-                                        {itemCorrect && <CheckCircle className="w-3 h-3 flex-shrink-0" />}
-                                        {wrongHere && <XCircle className="w-3 h-3 flex-shrink-0" />}
-                                        {missingHere && <span className="w-3 h-3 flex-shrink-0 text-xs">✓</span>}
-                                        <span>{item.text}</span>
-                                        {missingHere && <span className="text-xs">(correct answer — not placed here)</span>}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {question.type === 'inline-dropdown' && wasAnswered && question.inlineDropdowns && (
-                        <div className="mb-4 space-y-2">
-                          {question.inlineDropdowns.map((dropdown: any, idx: number) => {
-                            const userVal = userAnswer?.[idx];
-                            const isDropCorrect = userVal === dropdown.correctAnswer;
-                            return (
-                              <div key={idx} className={`p-3 rounded-lg border-2 text-sm ${isDropCorrect ? 'border-[#10b981] bg-green-50' : 'border-[#dc2626] bg-red-50'}`}>
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-slate-600">Blank {idx + 1}:</span>
-                                  <span className={`font-medium ${isDropCorrect ? 'text-[#10b981]' : 'text-[#dc2626]'}`}>
-                                    {userVal !== undefined ? dropdown.options[userVal] : '(not answered)'}
-                                  </span>
-                                  {!isDropCorrect && (
-                                    <span className="text-[#10b981]">→ Correct: <strong>{dropdown.options[dropdown.correctAnswer]}</strong></span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {question.type === 'matching-dropdown' && wasAnswered && question.dropdownRows && (
-                        <div className="mb-4 space-y-2">
-                          {question.dropdownRows.map((row: any) => {
-                            const userVal = userAnswer?.[row.id];
-                            const isRowCorrect = userVal === row.correctAnswer;
-                            return (
-                              <div key={row.id} className={`p-3 rounded-lg border-2 text-sm ${isRowCorrect ? 'border-[#10b981] bg-green-50' : 'border-[#dc2626] bg-red-50'}`}>
-                                <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                                  <span className="font-medium text-slate-700">{row.label}</span>
-                                  <span className="text-slate-400 text-xs">→</span>
-                                  <div>
-                                    <span className={`font-medium block ${isRowCorrect ? 'text-[#10b981]' : 'text-[#dc2626]'}`}>
-                                      {userVal !== undefined ? row.options[userVal] : '(not answered)'}
-                                    </span>
-                                    {!isRowCorrect && (
-                                      <span className="text-xs text-[#10b981]">Correct: {row.options[row.correctAnswer]}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      
-                      <div className="p-4 bg-blue-50/60 border border-[#1e40af]/10 rounded-xl">
-                        <p className="font-bold text-sm text-[#1e40af] mb-1">Explanation:</p>
-                        <p className="text-sm text-slate-700 leading-relaxed">{question.explanation}</p>
                       </div>
                     </div>
                   </div>
-                </div>
+                </article>
               );
             })}
-          </div>
-        </Card>
-        
-        {/* Layout Navigation Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/">
-            <Button variant="outline" className="w-full sm:w-auto font-medium">
-              <Home className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
-          <Link to={`/category/${quiz.category}`}>
-            <Button variant="outline" className="w-full sm:w-auto font-medium">
-              View More Quizzes
-            </Button>
-          </Link>
-          <Link to={`/quiz/${quizId}/instructions?mode=${results.mode}`}>
-            <Button className="w-full sm:w-auto bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-medium shadow-sm">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Retake Quiz
-            </Button>
-          </Link>
-        </div>
+
+            {filteredReview.length === 0 && (
+              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white py-16 text-center">
+                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+                <h3 className="mt-3 text-lg font-bold text-slate-950">Nothing to review here</h3>
+                <p className="mt-1 text-sm text-slate-500">Choose another result filter to continue.</p>
+              </div>
+            )}
+          </motion.div>
       </div>
+
+      <div className="mx-auto max-w-6xl flex flex-col items-center justify-between gap-4 rounded-2xl bg-[#0d245c] p-5 text-white sm:flex-row sm:p-6">
+          <div>
+            <p className="font-bold">Ready for your next step?</p>
+            <p className="mt-1 text-sm text-blue-200">Retake this set or continue building your certification path.</p>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Link to="/" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/15 px-4 text-sm font-bold hover:bg-white/10">
+              <Home className="h-4 w-4" />
+              Dashboard
+            </Link>
+            <Link to={`/quiz/${quizId}/instructions?mode=${results.mode}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-[#1e40af] hover:bg-blue-50">
+              <RotateCcw className="h-4 w-4" />
+              Retake quiz
+            </Link>
+          </div>
+        </div>
     </div>
   );
 }

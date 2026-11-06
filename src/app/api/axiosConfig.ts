@@ -1,7 +1,10 @@
-import axios from 'axios';
+import axios, {
+  type InternalAxiosRequestConfig,
+} from 'axios';
 
-// Update this to match your actual backend URL
-const API_URL = 'http://localhost:8081/api/v1';
+// Prefer environment configuration instead of hardcoding localhost.
+const API_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:8081/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -10,15 +13,62 @@ const api = axios.create({
   },
 });
 
-// 1. Request Interceptor: Attach the current Access Token to every request
-// 1. Request Interceptor: The Smart Outbound Bouncer
+// Add retry tracking to Axios request configuration.
+declare module 'axios' {
+  interface InternalAxiosRequestConfig<D = any> {
+    _retry?: boolean;
+  }
+}
+
+// Shared refresh operation.
+// Multiple failed requests will use the same refresh promise.
+let refreshPromise: Promise<string> | null = null;
+
+function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      if (!refreshToken) {
+        throw new Error('Refresh token not found');
+      }
+
+      // Use standard Axios to avoid triggering our own interceptors.
+      const response = await axios.post(
+        `${API_URL}/auth/refresh`,
+        { refreshToken }
+      );
+
+      const accessToken = response.data.accessToken;
+      const newRefreshToken = response.data.refreshToken;
+
+      if (!accessToken) {
+        throw new Error('Access token missing from refresh response');
+      }
+
+      localStorage.setItem('token', accessToken);
+
+      if (newRefreshToken) {
+        localStorage.setItem('refreshToken', newRefreshToken);
+      }
+
+      return accessToken;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
 
     const isAuthEndpoint =
-      config.url?.endsWith('/auth/login') ||
-      config.url?.endsWith('/auth/refresh');
+      config.url?.includes('/auth/login') ||
+      config.url?.includes('/auth/refresh');
 
     if (token && !isAuthEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -29,69 +79,59 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 2. Response Interceptor: Catch 401s and Refresh
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response, // If the request succeeds, just return it
+  (response) => response,
+
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as
+      | InternalAxiosRequestConfig
+      | undefined;
 
-    // Check if the error is 401 AND we haven't already retried this request
-    // Also ensure we aren't intercepting a failed login or refresh attempt itself
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
+    const isAuthEndpoint =
+      originalRequest.url?.includes('/auth/login') ||
+      originalRequest.url?.includes('/auth/refresh');
+
     if (
-      error.response?.status === 401 && 
-      !originalRequest._retry &&
-      !originalRequest.url?.includes('/auth/login') &&
-      !originalRequest.url?.includes('/auth/refresh')
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      isAuthEndpoint
     ) {
-      originalRequest._retry = true; // Mark as retried to prevent infinite loops
+      return Promise.reject(error);
+    }
 
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        console.log('Attempting to refresh token with refreshToken...' + refreshToken);
-        
-        if (!refreshToken) {
-          throw new Error('No refresh token found');
-        }
+    originalRequest._retry = true;
 
-        // 🚀 Call your backend refresh endpoint using STANDARD axios
-        const response = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken: refreshToken,
-        });
+    try {
+      const newAccessToken = await refreshAccessToken();
 
-        console.log('Token refresh successful!', refreshToken, response.data);
+      originalRequest.headers.Authorization =
+        `Bearer ${newAccessToken}`;
 
-        // 🚀 CRITICAL FIX: Make sure we map 'token' instead of 'accessToken'
-        // based on your Spring Boot AuthenticationResponseDTO
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+      return api(originalRequest);
+    } catch (refreshError) {
+      const status = axios.isAxiosError(refreshError)
+        ? refreshError.response?.status
+        : undefined;
 
-        // Save the new tokens
-        localStorage.setItem('token', accessToken);
-        if (newRefreshToken) {
-          localStorage.setItem('refreshToken', newRefreshToken);
-        }
-
-        // Update the failed request with the fresh token and retry it!
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        return api(originalRequest);
-
-      } catch (refreshError) {
-        // 🚨 The refresh token was expired or revoked! 
-        console.warn("Refresh token invalid. Scrubbing local state...");
+      // Clear the session only when the server confirms
+      // that the refresh credentials are no longer valid.
+      if ([400, 401, 403].includes(status ?? 0)) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        
-        // Dispatch event to open sign-in or redirect
-        // window.dispatchEvent(new Event('open-signin'));
-        // if (window.location.pathname !== '/login') {
-        //     window.location.href = '/login'; 
-        // }
-        
-        return Promise.reject(refreshError);
-      }
-    }
 
-    return Promise.reject(error);
+        window.dispatchEvent(
+          new Event('auth:session-expired')
+        );
+      }
+
+      return Promise.reject(refreshError);
+    }
   }
 );
 

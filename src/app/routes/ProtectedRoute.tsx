@@ -1,14 +1,27 @@
-import { Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useLocation } from 'react-router';
 import { useUser } from '../context/UserContext';
 
 export default function ProtectedRoute() {
-  const { isLoggedIn } = useUser();
+  const { isLoggedIn, isLoading } = useUser();
+  const location = useLocation();
 
-  // If they aren't logged in, kick them to the login page
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600" />
+      </div>
+    );
   }
 
-  // Otherwise, render the child routes!
+  if (!isLoggedIn) {
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: location }}
+        replace
+      />
+    );
+  }
+
   return <Outlet />;
 }

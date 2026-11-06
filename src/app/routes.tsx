@@ -1,19 +1,11 @@
 import { createBrowserRouter } from 'react-router';
-import { Dashboard } from './pages/Dashboard';
-import { AllQuizzes } from './pages/AllQuizzes';
-import { CategoryPage } from './pages/CategoryPage';
-import { QuizInstructions } from './pages/QuizInstructions';
-import { ActiveQuiz } from './pages/ActiveQuiz';
-import { QuizResults } from './pages/QuizResults';
-import { QuizCreator } from './pages/QuizCreator';
-import { Profile } from './pages/Profile';
 import { Navbar } from './components/Navbar';
 import { Toaster } from './components/ui/sonner';
-import { OAuth2RedirectHandler } from './auth/OAuth2RedirectHandler';
 import { Footer } from './components/Footer';
-import LoginPage from "./pages/LoginPage";
-import  ProtectedRoute  from './routes/ProtectedRoute'; // 🚀 Import your new gatekeeper
-import  PublicOnlyRoute  from './routes/PublicOnlyRoute';
+import { OAuth2RedirectHandler } from './auth/OAuth2RedirectHandler';
+import ProtectedRoute from './routes/ProtectedRoute';
+import PublicOnlyRoute from './routes/PublicOnlyRoute';
+import React from 'react';
 
 function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,91 +20,161 @@ function RootLayout({ children }: { children: React.ReactNode }) {
 
 export const router = createBrowserRouter([
   // ==========================================
-  // 🟢 PUBLIC ROUTES (Anyone can access these)
+  // PUBLIC ROUTES
   // ==========================================
   {
     path: '/',
-    element: (
-      <RootLayout>
-        <Dashboard />
-      </RootLayout>
-    ),
+    lazy: async () => {
+      const { Dashboard } = await import('./pages/Dashboard');
+
+      return {
+        Component: () => (
+          <RootLayout>
+            <Dashboard />
+          </RootLayout>
+        ),
+      };
+    },
   },
   {
     path: '/quizzes',
-    element: (
-      <RootLayout>
-        <AllQuizzes />
-      </RootLayout>
-    ),
+    lazy: async () => {
+      const { AllQuizzes } = await import('./pages/AllQuizzes');
+
+      return {
+        Component: () => (
+          <RootLayout>
+            <AllQuizzes />
+          </RootLayout>
+        ),
+      };
+    },
   },
   {
     path: '/quiz/:quizId/instructions',
-    element: (
-      <RootLayout>
-        <QuizInstructions />
-      </RootLayout>
-    ),
+    lazy: async () => {
+      const { QuizInstructions } = await import('./pages/QuizInstructions');
+
+      return {
+        Component: () => (
+          <RootLayout>
+            <QuizInstructions />
+          </RootLayout>
+        ),
+      };
+    },
   },
   {
     path: '/category/:categoryId',
-    element: (
-      <RootLayout>
-        <CategoryPage />
-      </RootLayout>
-    ),
-  },
-  {
-  element: <PublicOnlyRoute />,
-  children: [
-    {
-      path: "/login",
-      element: <LoginPage />
-    }
-  ]
-},
-  {
-    path: '/oauth2/redirect',
-    element: (
-      <RootLayout>
-        <OAuth2RedirectHandler />
-      </RootLayout>
-    ),
+    lazy: async () => {
+      const { CategoryPage } = await import('./pages/CategoryPage');
+
+      return {
+        Component: () => (
+          <RootLayout>
+            <CategoryPage />
+          </RootLayout>
+        ),
+      };
+    },
   },
 
   // ==========================================
-  // 🔴 PROTECTED ROUTES (Requires Login)
+  // PUBLIC-ONLY ROUTES
   // ==========================================
   {
-    element: <ProtectedRoute />, // 🚀 The Gatekeeper sits here
+    element: <PublicOnlyRoute />,
+    children: [
+      {
+        path: '/login',
+        lazy: async () => {
+          const { default: LoginPage } = await import('./pages/LoginPage');
+
+          return {
+            Component: LoginPage,
+          };
+        },
+      },
+    ],
+  },
+
+  // ==========================================
+  // OAUTH ROUTES
+  // ==========================================
+  {
+    path: '/oauth2/redirect',
+    lazy: async () => {
+      const { OAuth2RedirectHandler } = await import(
+        './auth/OAuth2RedirectHandler'
+      );
+
+      return {
+        Component: () => (
+          <RootLayout>
+            <OAuth2RedirectHandler />
+          </RootLayout>
+        ),
+      };
+    },
+  },
+
+  // ==========================================
+  // PROTECTED ROUTES
+  // ==========================================
+  {
+    element: <ProtectedRoute />,
     children: [
       {
         path: '/create-quiz',
-        element: (
-          <RootLayout>
-            <QuizCreator />
-          </RootLayout>
-        ),
+        lazy: async () => {
+          const { QuizCreator } = await import('./pages/QuizCreator');
+
+          return {
+            Component: () => (
+              <RootLayout>
+                <QuizCreator />
+              </RootLayout>
+            ),
+          };
+        },
       },
       {
         path: '/profile',
-        element: (
-          <RootLayout>
-            <Profile />
-          </RootLayout>
-        ),
+        lazy: async () => {
+          const { Profile } = await import('./pages/Profile');
+
+          return {
+            Component: () => (
+              <RootLayout>
+                <Profile />
+              </RootLayout>
+            ),
+          };
+        },
       },
       {
         path: '/quiz/:quizId/attempt',
-        element: <ActiveQuiz />, // Note: Intentionally left out of RootLayout per your original setup
+        lazy: async () => {
+          const { ActiveQuiz } = await import('./pages/ActiveQuiz');
+
+          return {
+            Component: ActiveQuiz,
+          };
+        },
       },
       {
         path: '/quiz/:quizId/results',
-        element: (
-          <RootLayout>
-            <QuizResults />
-          </RootLayout>
-        ),
+        lazy: async () => {
+          const { QuizResults } = await import('./pages/QuizResults');
+
+          return {
+            Component: () => (
+              <RootLayout>
+                <QuizResults />
+              </RootLayout>
+            ),
+          };
+        },
       },
     ],
   },
